@@ -3,10 +3,11 @@ import { readFileSync } from "fs";
 
 export class Room {
 
-    constructor() {
+    constructor(id) {
         this.puzzleGridData = JSON.parse(readFileSync('./data/puzzle_grid_data.json')).grids;
 
         // this.fillPool(3, this.puzzlePool);
+        this.id = id;
     }
 
     maxPlayer = 2;
@@ -14,7 +15,7 @@ export class Room {
     players = [];
     currentMatchTime = 0;
     startMatchTime = 0;
-    roomID = 0;
+    id = 0;
     isMatchOn = false;
     timer = null;
     updateTime = 100;
