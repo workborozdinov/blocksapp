@@ -1,7 +1,8 @@
 import { Player } from "./Player.js";
 import { readFileSync } from "fs";
 import { EventEmitter  } from "events";
-import RoomEvents from "../enum/roomEvents.js";
+import RoomEvents from "../enum/RoomEvents.js";
+import SystemEvents from "../enum/SystemEvents.js";
 import { Timer } from "../modules/Timer.js";
 import { PuzzlePool } from "../modules/PuzzlePool.js";
 import MatchState from '../enum/MatchState.js';
@@ -30,15 +31,56 @@ export class Room {
     #puzzlePool = null;
     #state = null
     #systemEmitter = null;
+    #opponentsWaitingTime = 30000; //30sec
+    #opponentWaitTimer = null;
 
     addPlayer = (player) => {
         this.#players.set(player.id, player);
 
-        // this.isRoomFull() && this.#initGame();
+        if (!this.isRoomFull()) {
+            this.#opponentWaitTimer = new Timer(this.#opponentsWaitingTime, this.#updateTime,
+                null,
+                () => { this.#systemEmitter.emit(SystemEvents.THROW_ERROR_WAITING_OPPONENT, this, player) },
+                null
+            );
 
-        setTimeout(()=>{
-            this.#initGame();
-        }, 2000);
+            this.#opponentWaitTimer.start();
+        } else {
+            if (this.#opponentWaitTimer) this.#opponentWaitTimer.stop();
+
+            this.#initMatch();
+        }
+    }
+
+    updateDataPlayer = (player, ws) => {
+        if (player.isPlayerDisconnect) {
+            player.isPlayerDisconnect = false;
+            
+            player.updateWS(ws);
+
+            this.#sendMessageToPlayer(player, 'updatePlayerGrid', { grid: player.gameField.getGrid() });
+            this.#sendMessageToPlayer(player, 'updatePlayerScore', { score: player.score });
+            this.#sendMessageToPlayer(player, 'fillPuzzleStorage', { puzzlesData: player.puzzleStorage.getAllPuzzlesInStorage() });
+            this.#sendMessageToPlayer(player, 'setPlayerName', { name: player.name });
+            
+            for (let player2 of this.#players.values()) {
+                if (player2.id !== player.id) {
+                    this.#sendMessageToPlayer(player, 'updateEnemyScore', { score: player2.score });
+                    this.#sendMessageToPlayer(player, 'updateEnemyGrid', { grid: player2.gameField.getGrid() });
+                    this.#sendMessageToPlayer(player, 'setEnemyName', { name: player2.name });
+
+                    if (player2.state === PlayerState.Finished) {
+                        this.#sendMessageToPlayer(player, 'enemyFinished', { status: true });
+                    }
+                }
+            }
+    
+            if (player.state === PlayerState.Finished) {
+                this.#sendMessageToPlayer(player, 'changeMatchState', { state: false });
+            } else {
+                this.#sendMessageToPlayer(player, 'changeMatchState', { state: true });
+            }
+        }
     }
 
     getPlayer = (playerID) => {
@@ -57,22 +99,33 @@ export class Room {
         this.emitter.on(RoomEvents.CHANGE_PLAYER_STATE, this.#onChangePlayerState);
     }
 
-    #initGame = () => {
-        console.log('initGame');
+    #initMatch = () => {
+        console.log('initMatch');
 
         this.#puzzlePool = new PuzzlePool();
 
+        const iterator = this.#players.value();
+
+        const player1 = iterator.next().value;
+        const player2 = iterator.next().value; 
+
+        this.#sendMessageToPlayer(player1, 'setPlayerName', { name: player1.name });
+        this.#sendMessageToPlayer(player2, 'setPlayerName', { name: player2.name });
+
+        this.#sendMessageToPlayer(player1, 'setEnemyName', { name: player2.name });
+        this.#sendMessageToPlayer(player2, 'setEnemyName', { name: player1.name });
+
         this.#timer = new Timer(this.#durationMatch, this.#updateTime,
-            ()=>{ this.#startGame() },
-            ()=>{ this.#finishGame() },
+            ()=>{ this.#startMatch() },
+            ()=>{ this.#finishMatch() },
             (currentTime)=>{ this.#updateMatchTime(currentTime) }
         )
 
         this.#timer.start();
     }
 
-    #startGame = async () => {
-        console.log('startGame');
+    #startMatch = async () => {
+        console.log('startMatch');
 
         this.#sendMessageToAllPlayers('changeMatchState', { state: true });
 
@@ -117,8 +170,12 @@ export class Room {
         }
     }
 
-    #finishGame = () => {
+    #finishMatch = () => {
         this.#sendMessageToAllPlayers('changeMatchState', { state: false });
+
+        const iterator = this.#players.values();
+
+        this.#systemEmitter.emit(SystemEvents.ROOM_CLOSED, this, iterator.next().value, iterator.next().value);
     }
 
     #updateMatchTime = (currentTime) => {
@@ -144,6 +201,10 @@ export class Room {
 
         player.ws.send(JSON.stringify(obj));
     }
+
+    // #closeRoom = () => {
+
+    // }
 
     #onGetPuzzleSection = async (player) => {
         const sectionGrids = await this.#puzzlePool.getPuzzlesGridsSection(player.indexSectionInPool);
@@ -189,7 +250,8 @@ export class Room {
     #onChangePlayerState = (player, state) => {
         switch (state) {
             case PlayerState.Ready:
-
+                // console.log('change state', state, this.isRoomFull());
+                // this.isRoomFull() && this.#initMatch();
                 break;
 
             case PlayerState.Playing: 
@@ -197,7 +259,19 @@ export class Room {
 
             case PlayerState.Finished:
                 this.#sendMessageToPlayer(player, 'changeMatchState', { state: false });
-            
+
+                for (let player2 of this.#players.values()) {
+                    if (player2.id !== player.id) {
+                        this.#sendMessageToPlayer(player2, 'enemyFinished', { status: true });
+                        
+                        if (player2.state === PlayerState.Finished) {
+                            if (this.#timer) this.#timer.stop();
+
+                            this.#systemEmitter.emit(SystemEvents.ROOM_CLOSED, this, player, player2);
+                        }
+                    }
+                }
+
                 break;
 
             default: break;

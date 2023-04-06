@@ -4,7 +4,7 @@ import path from 'path'
 import http from 'http';
 import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import { getClient, joinOrCreateRoom } from './controllers/gameController.js';
+import { getClient, joinOrCreateRoom, checkUser } from './controllers/gameController.js';
 
 import { WebSocketServer } from 'ws';
 
@@ -23,6 +23,12 @@ app.use(cors({
 app.use(express.static(path.resolve(__dirname, 'client')))
     .set('view engine', 'ejs')
     .get('/', getClient);
+
+//FIX
+app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
+
+app.route('/api/v1/check_user')
+    .post(checkUser);
 
 const server = http.createServer(app);
 

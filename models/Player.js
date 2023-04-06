@@ -1,16 +1,18 @@
 import { GameField } from "../models/GameField.js";
 import { PuzzleStorage } from "../models/PuzzleStorage.js";
 import MessageTypes from "../enum/MessageTypes.js";
-import RoomEvents from "../enum/roomEvents.js";
+import RoomEvents from "../enum/RoomEvents.js";
 import PlayerState from "../enum/PlayerState.js";
 
 export class Player {
 
-    constructor(ws, id, roomEmitter) {
+    constructor(ws, id, roomEmitter, name) {
         this.ws = ws;
         this.id = id;
         this.roomEmitter = roomEmitter;
         this.indexSectionInPool = 0;
+        this.isPlayerDisconnect = false;
+        this.name = name;
 
         this.#handleSubscriptions(true);
         this.changeState(PlayerState.Ready);
@@ -21,11 +23,13 @@ export class Player {
     ws = null;
     roomEmitter = null;
     score = 0;
+    name = null;
 
-    playerState = null;
+    state = null;
 
     puzzleStorage = new PuzzleStorage();
     gameField = new GameField();
+    isPlayerDisconnect = null;
 
     #handleSubscriptions = (isOn) => {
         this.ws.onerror = isOn
@@ -55,6 +59,12 @@ export class Player {
 
             this.roomEmitter.emit(RoomEvents.CHANGE_PLAYER_STATE, this, state);
         }
+    }
+
+    updateWS = (ws) => {
+        this.ws = ws;
+
+        this.#handleSubscriptions(true);
     }
 
     #setPuzzle = async (puzzle) => {
@@ -92,8 +102,7 @@ export class Player {
                     const isBreakPlaying = puzzlesInStorage.every(puzzle => !!!puzzle.possiblePositions.length) 
 
                     if (isBreakPlaying) { 
-                        this.changeState(PlayerState.Finished)
-                        console.log('finish');
+                        this.changeState(PlayerState.Finished);
                     }
 
                 }
@@ -111,6 +120,8 @@ export class Player {
     }
     
     #onMessage = (event) => {
+        if (this.state === PlayerState.Finished) return
+
         const obj = JSON.parse(event.data);
         const type = obj.type;
         const params = obj.params;
@@ -128,5 +139,8 @@ export class Player {
     
     #onClose = (event) => {
         console.log(`close ws playerID: ${this.id}`);
+        this.isPlayerDisconnect = true;
+
+        this.#handleSubscriptions(false);
     }
 }

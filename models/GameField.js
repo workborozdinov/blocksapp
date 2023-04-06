@@ -26,6 +26,10 @@ export class GameField {
         }
     }
 
+    getGrid = () => {
+        return this.#grid;
+    }
+
     #addPuzzle = (positionInGameField) => {
         positionInGameField.forEach(stroke => stroke.forEach(cell => cell.isEmpty && (this.#grid[cell.i][cell.j] = 1)));
     }

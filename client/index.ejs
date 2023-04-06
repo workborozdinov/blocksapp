@@ -40,13 +40,15 @@
   <link rel="stylesheet" type="text/css" href="style-mobile.css"/>
   <link rel="icon" href="favicon.ico"/>
 </head>
-<body data-player_id="<%=playerID %>" data-room_id="<%=roomID %>" data-room_id="<%=battleID %>">
+<body data-player_id="<%=playerID %>" data-room_id="<%=roomID %>" data-battle_id=<%=battleID %>>
   <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
   <div id="splash">
     <div class="progress-bar stripes">
       <span style="width: 0%"></span>
     </div>
   </div>
+
+
 
 <script src="src/settings.js" charset="utf-8"></script>
 

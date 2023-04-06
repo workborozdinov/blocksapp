@@ -4,7 +4,8 @@ const RoomEvents = {
     UPDATE_POSSIBLE_PUZZLES_POSITIONS: 'updatePossiblePuzzlesPositions',
     UPDATE_SCORE: 'updateScore',
     UPDATE_GRID: 'updateGrid',
-    CHANGE_PLAYER_STATE: 'changePlayerState'
+    CHANGE_PLAYER_STATE: 'changePlayerState',
+    SET_PLAYER_NAME: 'setPlayerName'
 }
 
 Object.freeze(RoomEvents);
